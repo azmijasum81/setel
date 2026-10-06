@@ -5,7 +5,7 @@ st.title("Quick Insight")
 
 limit = st.slider("Rows to preview", 5, 1000, 100)
 
-st.subheader("Total Order : Non SOS")
+st.subheader("Non SOS Order")
 total_order_sql = f"""
     SELECT
         p.id,
@@ -23,7 +23,7 @@ st.dataframe(
     query(total_order_sql),
     use_container_width=True
 )
-st.subheader("Total Order : SOS order")
+st.subheader("SOS order")
 total_order_SOS = f"""
 SELECT
     o.*
