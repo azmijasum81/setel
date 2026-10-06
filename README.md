@@ -7,7 +7,7 @@ A data analysis and reconciliation dashboard built with **Python, SQL, DuckDB, P
 ![Qucik Insight](screenshot/quick_insight.png)
 
 ## 📈 Dashboard Page
-
+![Dashboard](screenshot/Dashboard.png)
 ## 📉 Cancellation Funnel
 
 
