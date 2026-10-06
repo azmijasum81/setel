@@ -3,28 +3,59 @@ import pandas as pd
 import streamlit as st
 from db import query, SETEL_TABLE, SETEL_STATUS_COL, SETEL_TIMELINE_COL
 
+
 st.title("Cancellation Funnel")
-st.caption("Stage = the last status an order reached before it was cancelled (from status_timeline).")
+st.subheader("Order cancel Before Pitstop accept")
+# KPI
+kpi_sql = """
+SELECT COUNT(*) AS pending_confirmation_count
+FROM partner p
+INNER JOIN orders o
+    ON CAST(p.id AS VARCHAR) = o.externalid
+WHERE o.externalid NOT LIKE 'SOS%'
+  AND p.waiting_confirmation_on IS NULL;
+"""
 
-df = query(f"SELECT {SETEL_TIMELINE_COL} AS tl FROM {SETEL_TABLE} "
-           f"WHERE UPPER({SETEL_STATUS_COL}) = 'CANCELLED'")
+kpi_result = query(kpi_sql)
 
+if isinstance(kpi_result, pd.DataFrame):
+    pending_count = int(kpi_result.iloc[0]["pending_confirmation_count"])
+else:
+    pending_count = int(kpi_result[0]["pending_confirmation_count"])
 
-def stage_before_cancel(raw):
-    try:
-        steps = [s["status"] for s in json.loads(raw)]
-    except Exception:
-        return "UNKNOWN"
-    if "CANCELLED" in steps:
-        i = steps.index("CANCELLED")
-        return steps[i - 1] if i > 0 else "CANCELLED_DIRECTLY"
-    return steps[-1] if steps else "UNKNOWN"
+st.metric(
+    label="Customer cancel before pitstop accept",
+    value=f"{pending_count:,}"
+)
+# DATA
+data_sql = """
+SELECT
+    p.id,
+    p.status,
+    p.vpn,
+    p.username,
+    p.created_at,
+    p.waiting_confirmation_on,
+    o.externalid
+FROM partner p
+INNER JOIN orders o
+    ON CAST(p.id AS VARCHAR) = o.externalid
+WHERE o.externalid NOT LIKE 'SOS%'
+  AND p.waiting_confirmation_on IS NULL
+ORDER BY p.created_at DESC;
+"""
 
-
-df["stage"] = df["tl"].apply(stage_before_cancel)
-funnel = df["stage"].value_counts().rename_axis("stage").reset_index(name="cancelled_orders")
-funnel["%"] = (funnel["cancelled_orders"] / funnel["cancelled_orders"].sum() * 100).round(1)
-
-st.metric("Total cancelled orders (Setel)", f"{len(df):,}")
-st.bar_chart(funnel.set_index("stage")["cancelled_orders"], horizontal=True)
-st.dataframe(funnel, use_container_width=True, hide_index=True)
+df = query(data_sql)
+# TABLE
+if isinstance(df, pd.DataFrame):
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+    )
+else:
+    st.dataframe(
+        pd.DataFrame(df),
+        use_container_width=True,
+        hide_index=True,
+    )
