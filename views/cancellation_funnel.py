@@ -245,3 +245,85 @@ else:
         use_container_width=True,
         hide_index=True,
     )
+st.markdown("---")
+st.markdown("---")
+
+
+# ============================================================
+# ORDER CANCEL BEFORE RIDER ACCEPT
+# ============================================================
+
+st.subheader("Cancel Before Rider Accept")
+
+
+# ============================================================
+# KPI
+# ============================================================
+
+kpi_rider_cancel_sql = """
+SELECT COUNT(*) AS cancel_before_rider_accept_count
+FROM partner p
+INNER JOIN orders o
+    ON CAST(p.id AS VARCHAR) = o.externalid
+WHERE o.externalid NOT LIKE 'SOS%'
+  AND p.ready_to_dispatch_on IS NULL;
+"""
+
+kpi_rider_cancel_result = query(kpi_rider_cancel_sql)
+
+if isinstance(kpi_rider_cancel_result, pd.DataFrame):
+    cancel_before_rider_accept_count = int(
+        kpi_rider_cancel_result.iloc[0]["cancel_before_rider_accept_count"]
+    )
+else:
+    cancel_before_rider_accept_count = int(
+        kpi_rider_cancel_result[0]["cancel_before_rider_accept_count"]
+    )
+
+
+st.metric(
+    label="Customer Cancel Before Rider Accept",
+    value=f"{cancel_before_rider_accept_count:,}"
+)
+
+
+# ============================================================
+# DETAIL DATA
+# ============================================================
+
+rider_cancel_data_sql = """
+SELECT
+    p.id,
+    p.status,
+    p.vpn,
+    p.username,
+    p.created_at,
+    p.ready_to_dispatch_on,
+    o.externalid
+FROM partner p
+INNER JOIN orders o
+    ON CAST(p.id AS VARCHAR) = o.externalid
+WHERE o.externalid NOT LIKE 'SOS%'
+  AND p.ready_to_dispatch_on IS NULL
+ORDER BY p.created_at DESC;
+"""
+
+rider_cancel_df = query(rider_cancel_data_sql)
+
+
+# ============================================================
+# TABLE
+# ============================================================
+
+if isinstance(rider_cancel_df, pd.DataFrame):
+    st.dataframe(
+        rider_cancel_df,
+        use_container_width=True,
+        hide_index=True,
+    )
+else:
+    st.dataframe(
+        pd.DataFrame(rider_cancel_df),
+        use_container_width=True,
+        hide_index=True,
+    )
