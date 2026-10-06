@@ -6,7 +6,9 @@ A data analysis and reconciliation dashboard built with **Python, SQL, DuckDB, P
 
 ![Qucik Insight](screenshot/quick_insight.png)
 
-## <img width="480" height="323" alt="ArtAnalyticsGIFbyShipBob" src="https://github.com/user-attachments/assets/746e68a9-825d-4892-8c34-f3d23a0f48ee" />
+## 📈 Dashboard Page
+
+## 📉 Cancellation Funnel
 
 
 ## 🎯 Project Objective
