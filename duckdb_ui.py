@@ -1,5 +1,7 @@
 import duckdb
 
-con = duckdb.connect("setel.duckdb")
+con = duckdb.connect()  # in-memory session
+con.sql("ATTACH 'setel.duckdb' AS setel (READ_ONLY)")
+con.sql("USE setel")
 con.sql("CALL start_ui()")
-input("UI is running. Press Enter to stop...")
+input("DuckDB UI running. Press Enter to stop...")
