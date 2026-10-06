@@ -2,7 +2,7 @@
 
 A data analysis and reconciliation dashboard built with **Python, SQL, DuckDB, Pandas and Streamlit** to analyze Setel order data.
 
-## 📊 Dashboard Preview
+## 📊 Page Preview
 
 ![Dashboard Preview](screenshots/dashboard.png)
 
