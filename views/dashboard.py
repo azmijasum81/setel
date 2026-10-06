@@ -100,10 +100,33 @@ total_refunded_order = int(
 
 
 # =========================================================
+# PERCENTAGE CALCULATION
+# =========================================================
+
+completion_rate = (
+    total_completed_order / total_order * 100
+    if total_order > 0
+    else 0
+)
+
+cancellation_rate = (
+    total_cancel_order / total_order * 100
+    if total_order > 0
+    else 0
+)
+
+refunded_rate = (
+    total_refunded_order / total_order * 100
+    if total_order > 0
+    else 0
+)
+
+
+# =========================================================
 # KPI DISPLAY
 # =========================================================
 
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 with col1:
     st.metric(
@@ -119,11 +142,23 @@ with col2:
 
 with col3:
     st.metric(
+        label="Completion Rate",
+        value=f"{completion_rate:.2f}%"
+    )
+
+with col4:
+    st.metric(
         label="Cancelled",
         value=f"{total_cancel_order:,}"
     )
 
-with col4:
+with col5:
+    st.metric(
+        label="Cancellation Rate",
+        value=f"{cancellation_rate:.2f}%"
+    )
+
+with col6:
     st.metric(
         label="Refunded",
         value=f"{total_refunded_order:,}"
