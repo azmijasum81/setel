@@ -9,7 +9,7 @@ A data analysis and reconciliation dashboard built with **Python, SQL, DuckDB, P
 ## 📈 Dashboard Page
 ![Dashboard](screenshot/Dashboard.png)
 ## 📉 Cancellation Funnel
-
+![cancellationfunnel](screenshot/cancellation funnel.png)
 
 ## 🎯 Project Objective
 
