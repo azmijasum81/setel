@@ -4,7 +4,7 @@ A data analysis and reconciliation dashboard built with **Python, SQL, DuckDB, P
 
 ## 📊 Page Preview
 
-![Dashboard Preview](screenshots/dashboard.png)
+![Qucik Insight](screenshot/quick_insight.png)
 
 ## 🎯 Project Objective
 
