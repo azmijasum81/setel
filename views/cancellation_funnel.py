@@ -327,3 +327,168 @@ else:
         use_container_width=True,
         hide_index=True,
     )
+    st.markdown("---")
+
+
+# ============================================================
+# ORDER AFTER RIDER ACCEPT
+# ============================================================
+
+st.subheader("Cancel After Rider Accept")
+
+
+# ============================================================
+# WAITING TIME BUCKET KPI
+# ============================================================
+
+customer_waiting_bucket_sql = """
+WITH customer_waiting AS (
+    SELECT
+        date_diff(
+            'minute',
+            CAST(p.created_at AS TIMESTAMP),
+            CAST(p.ready_to_dispatch_on AS TIMESTAMP)
+        ) AS customer_waiting_minutes
+
+    FROM partner p
+    INNER JOIN orders o
+        ON CAST(p.id AS VARCHAR) = o.externalid
+
+    WHERE o.externalid NOT LIKE 'SOS%'
+      AND p.ready_to_dispatch_on IS NOT NULL
+)
+
+SELECT
+    CASE
+        WHEN customer_waiting_minutes < 10 THEN '<10 min'
+        WHEN customer_waiting_minutes < 20 THEN '10–20 min'
+        WHEN customer_waiting_minutes < 30 THEN '20–30 min'
+        WHEN customer_waiting_minutes < 45 THEN '30–45 min'
+        WHEN customer_waiting_minutes < 60 THEN '45–60 min'
+        ELSE '>60 min'
+    END AS waiting_bucket,
+
+    COUNT(*) AS total
+
+FROM customer_waiting
+
+GROUP BY waiting_bucket
+
+ORDER BY
+    CASE waiting_bucket
+        WHEN '<10 min' THEN 1
+        WHEN '10–20 min' THEN 2
+        WHEN '20–30 min' THEN 3
+        WHEN '30–45 min' THEN 4
+        WHEN '45–60 min' THEN 5
+        WHEN '>60 min' THEN 6
+    END;
+"""
+
+customer_waiting_bucket_df = query(customer_waiting_bucket_sql)
+
+
+# ============================================================
+# MAKE SURE ALL BUCKETS ALWAYS APPEAR
+# ============================================================
+
+bucket_order = [
+    "<10 min",
+    "10–20 min",
+    "20–30 min",
+    "30–45 min",
+    "45–60 min",
+    ">60 min",
+]
+
+customer_waiting_bucket_df = (
+    customer_waiting_bucket_df
+    .set_index("waiting_bucket")
+    .reindex(bucket_order, fill_value=0)
+    .reset_index()
+)
+
+
+# ============================================================
+# KPI CARDS
+# ============================================================
+
+cols = st.columns(6)
+
+for col, (_, row) in zip(
+    cols,
+    customer_waiting_bucket_df.iterrows()
+):
+    col.metric(
+        label=row["waiting_bucket"],
+        value=f"{int(row['total']):,}"
+    )
+
+
+# ============================================================
+# CUSTOMER WAITING DETAIL
+# ============================================================
+
+st.markdown("### Customer Waiting Details")
+
+
+customer_waiting_detail_sql = """
+WITH customer_waiting AS (
+    SELECT
+        p.id,
+        p.status,
+        p.vpn,
+        p.username,
+        p.created_at,
+        p.ready_to_dispatch_on,
+        o.externalid,
+
+        date_diff(
+            'minute',
+            CAST(p.created_at AS TIMESTAMP),
+            CAST(p.ready_to_dispatch_on AS TIMESTAMP)
+        ) AS customer_waiting_minutes
+
+    FROM partner p
+    INNER JOIN orders o
+        ON CAST(p.id AS VARCHAR) = o.externalid
+
+    WHERE o.externalid NOT LIKE 'SOS%'
+      AND p.ready_to_dispatch_on IS NOT NULL
+)
+
+SELECT
+    *,
+    CASE
+        WHEN customer_waiting_minutes < 10 THEN '<10 min'
+        WHEN customer_waiting_minutes < 20 THEN '10–20 min'
+        WHEN customer_waiting_minutes < 30 THEN '20–30 min'
+        WHEN customer_waiting_minutes < 45 THEN '30–45 min'
+        WHEN customer_waiting_minutes < 60 THEN '45–60 min'
+        ELSE '>60 min'
+    END AS waiting_bucket
+
+FROM customer_waiting
+
+ORDER BY customer_waiting_minutes DESC;
+"""
+
+customer_waiting_detail_df = query(customer_waiting_detail_sql)
+
+
+# ============================================================
+# DETAIL TABLE
+# ============================================================
+
+if isinstance(customer_waiting_detail_df, pd.DataFrame):
+    st.dataframe(
+        customer_waiting_detail_df,
+        use_container_width=True,
+        hide_index=True,
+    )
+else:
+    st.dataframe(
+        pd.DataFrame(customer_waiting_detail_df),
+        use_container_width=True,
+        hide_index=True,
+    )
