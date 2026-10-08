@@ -492,3 +492,266 @@ else:
         use_container_width=True,
         hide_index=True,
     )
+    st.markdown("---")
+
+
+st.markdown("---")
+
+
+# ============================================================
+# ORDER MATCH WITHOUT SOS
+# ORDER CANCEL BEFORE RIDER ARRIVED
+# ============================================================
+
+st.subheader("Order Match Without SOS — Cancel Before Rider Arrived")
+
+
+# ============================================================
+# KPI
+# ============================================================
+
+order_cancel_before_arrived_kpi_sql = """
+SELECT COUNT(*) AS cancel_before_rider_arrived_count
+FROM partner p
+INNER JOIN orders o
+    ON CAST(p.id AS VARCHAR) = o.externalid
+WHERE o.externalid NOT LIKE 'SOS%'
+  AND p.arrived_on IS NULL;
+"""
+
+order_cancel_before_arrived_kpi_result = query(
+    order_cancel_before_arrived_kpi_sql
+)
+
+if isinstance(order_cancel_before_arrived_kpi_result, pd.DataFrame):
+    cancel_before_rider_arrived_count = int(
+        order_cancel_before_arrived_kpi_result.iloc[0][
+            "cancel_before_rider_arrived_count"
+        ]
+    )
+else:
+    cancel_before_rider_arrived_count = int(
+        order_cancel_before_arrived_kpi_result[0][
+            "cancel_before_rider_arrived_count"
+        ]
+    )
+
+
+st.metric(
+    label="Order Cancel Before Rider Arrived",
+    value=f"{cancel_before_rider_arrived_count:,}"
+)
+
+
+# ============================================================
+# DETAIL DATA
+# ============================================================
+
+order_cancel_before_arrived_sql = """
+SELECT
+    p.id,
+    p.status,
+    p.vpn,
+    p.username,
+    p.created_at,
+    p.arrived_on,
+    o.externalid
+FROM partner p
+INNER JOIN orders o
+    ON CAST(p.id AS VARCHAR) = o.externalid
+WHERE o.externalid NOT LIKE 'SOS%'
+  AND p.arrived_on IS NULL
+ORDER BY p.created_at DESC;
+"""
+
+order_cancel_before_arrived_df = query(
+    order_cancel_before_arrived_sql
+)
+
+
+# ============================================================
+# DETAIL TABLE
+# ============================================================
+
+if isinstance(order_cancel_before_arrived_df, pd.DataFrame):
+    st.dataframe(
+        order_cancel_before_arrived_df,
+        use_container_width=True,
+        hide_index=True,
+    )
+else:
+    st.dataframe(
+        pd.DataFrame(order_cancel_before_arrived_df),
+        use_container_width=True,
+        hide_index=True,
+    )
+    st.markdown("---")
+
+
+# ============================================================
+# ORDER MATCH WITHOUT SOS
+# ORDER CANCEL AFTER RIDER ARRIVED
+# ============================================================
+
+st.subheader("Order Match Without SOS — Cancel After Rider Arrived")
+
+
+# ============================================================
+# WAITING TIME BUCKET KPI
+# ============================================================
+
+cancel_after_rider_arrived_bucket_sql = """
+WITH customer_waiting AS (
+    SELECT
+        date_diff(
+            'minute',
+            CAST(p.created_at AS TIMESTAMP),
+            CAST(p.arrived_on AS TIMESTAMP)
+        ) AS customer_waiting_minutes
+
+    FROM partner p
+    INNER JOIN orders o
+        ON CAST(p.id AS VARCHAR) = o.externalid
+
+    WHERE o.externalid NOT LIKE 'SOS%'
+      AND p.arrived_on IS NOT NULL
+)
+
+SELECT
+    CASE
+        WHEN customer_waiting_minutes < 10 THEN '<10 min'
+        WHEN customer_waiting_minutes < 20 THEN '10–20 min'
+        WHEN customer_waiting_minutes < 30 THEN '20–30 min'
+        WHEN customer_waiting_minutes < 45 THEN '30–45 min'
+        WHEN customer_waiting_minutes < 60 THEN '45–60 min'
+        ELSE '>60 min'
+    END AS waiting_bucket,
+
+    COUNT(*) AS total
+
+FROM customer_waiting
+
+GROUP BY waiting_bucket
+
+ORDER BY
+    CASE waiting_bucket
+        WHEN '<10 min' THEN 1
+        WHEN '10–20 min' THEN 2
+        WHEN '20–30 min' THEN 3
+        WHEN '30–45 min' THEN 4
+        WHEN '45–60 min' THEN 5
+        WHEN '>60 min' THEN 6
+    END;
+"""
+
+cancel_after_rider_arrived_bucket_df = query(
+    cancel_after_rider_arrived_bucket_sql
+)
+
+
+# ============================================================
+# MAKE SURE ALL BUCKETS ALWAYS APPEAR
+# ============================================================
+
+bucket_order = [
+    "<10 min",
+    "10–20 min",
+    "20–30 min",
+    "30–45 min",
+    "45–60 min",
+    ">60 min",
+]
+
+cancel_after_rider_arrived_bucket_df = (
+    cancel_after_rider_arrived_bucket_df
+    .set_index("waiting_bucket")
+    .reindex(bucket_order, fill_value=0)
+    .reset_index()
+)
+
+
+# ============================================================
+# KPI CARDS
+# ============================================================
+
+cols = st.columns(6)
+
+for col, (_, row) in zip(
+    cols,
+    cancel_after_rider_arrived_bucket_df.iterrows()
+):
+    col.metric(
+        label=row["waiting_bucket"],
+        value=f"{int(row['total']):,}"
+    )
+
+
+# ============================================================
+# DETAIL DATA
+# ============================================================
+
+st.markdown("### Customer Waiting Details")
+
+
+cancel_after_rider_arrived_detail_sql = """
+WITH customer_waiting AS (
+    SELECT
+        p.id,
+        p.status,
+        p.vpn,
+        p.username,
+        p.created_at,
+        p.arrived_on,
+        o.externalid,
+
+        date_diff(
+            'minute',
+            CAST(p.created_at AS TIMESTAMP),
+            CAST(p.arrived_on AS TIMESTAMP)
+        ) AS customer_waiting_minutes
+
+    FROM partner p
+    INNER JOIN orders o
+        ON CAST(p.id AS VARCHAR) = o.externalid
+
+    WHERE o.externalid NOT LIKE 'SOS%'
+      AND p.arrived_on IS NOT NULL
+)
+
+SELECT
+    *,
+    CASE
+        WHEN customer_waiting_minutes < 10 THEN '<10 min'
+        WHEN customer_waiting_minutes < 20 THEN '10–20 min'
+        WHEN customer_waiting_minutes < 30 THEN '20–30 min'
+        WHEN customer_waiting_minutes < 45 THEN '30–45 min'
+        WHEN customer_waiting_minutes < 60 THEN '45–60 min'
+        ELSE '>60 min'
+    END AS waiting_bucket
+
+FROM customer_waiting
+
+ORDER BY customer_waiting_minutes DESC;
+"""
+
+cancel_after_rider_arrived_detail_df = query(
+    cancel_after_rider_arrived_detail_sql
+)
+
+
+# ============================================================
+# DETAIL TABLE
+# ============================================================
+
+if isinstance(cancel_after_rider_arrived_detail_df, pd.DataFrame):
+    st.dataframe(
+        cancel_after_rider_arrived_detail_df,
+        use_container_width=True,
+        hide_index=True,
+    )
+else:
+    st.dataframe(
+        pd.DataFrame(cancel_after_rider_arrived_detail_df),
+        use_container_width=True,
+        hide_index=True,
+    )
