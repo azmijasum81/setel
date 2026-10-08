@@ -82,17 +82,83 @@ st.markdown("---")
 
 
 # ============================================================
-# ORDER CANCEL AFTER PITSTOP ACCEPT
+# ORDER AFTER PITSTOP ACCEPT
 # ============================================================
 
-st.subheader("Order Cancel After Pitstop Accept")
+st.subheader("Total Order After Pitstop Accept")
+# KPI — TOTAL ORDER AFTER PITSTOP ACCEPT
+total_complete_after_pitstop_sql = """
+SELECT COUNT(*) AS total_complete_after_pitstop
+FROM partner p
+INNER JOIN orders o
+    ON CAST(p.id AS VARCHAR) = o.externalid
+WHERE o.externalid NOT LIKE 'SOS%'
+  AND p.waiting_confirmation_on IS NOT NULL
+  AND p.status = 'completed';
+"""
+
+total_complete_after_pitstop_result = query(
+    total_complete_after_pitstop_sql
+)
+
+if isinstance(total_complete_after_pitstop_result, pd.DataFrame):
+    total_complete_after_pitstop = int(
+        total_complete_after_pitstop_result.iloc[0][
+            "total_complete_after_pitstop"
+        ]
+    )
+else:
+    total_complete_after_pitstop = int(
+        total_complete_after_pitstop_result[0][
+            "total_complete_after_pitstop"
+        ]
+    )
 
 
 # ============================================================
-# WAITING TIME BUCKET
+# TOTAL CANCEL ORDER AFTER PITSTOP ACCEPT
 # ============================================================
 
-bucket_sql = """
+total_cancel_after_pitstop_sql = """
+SELECT COUNT(*) AS total_cancel_after_pitstop
+FROM partner p
+INNER JOIN orders o
+    ON CAST(p.id AS VARCHAR) = o.externalid
+WHERE o.externalid NOT LIKE 'SOS%'
+  AND p.waiting_confirmation_on IS NOT NULL
+  AND p.status = 'cancelled';
+"""
+
+total_cancel_after_pitstop_result = query(
+    total_cancel_after_pitstop_sql
+)
+
+if isinstance(total_cancel_after_pitstop_result, pd.DataFrame):
+    total_cancel_after_pitstop = int(
+        total_cancel_after_pitstop_result.iloc[0][
+            "total_cancel_after_pitstop"
+        ]
+    )
+else:
+    total_cancel_after_pitstop = int(
+        total_cancel_after_pitstop_result[0][
+            "total_cancel_after_pitstop"
+        ]
+    )
+col1, col2 = st.columns(2)
+
+col1.metric(
+    label="Total Complete Order After Pitstop Accept",
+    value=f"{total_complete_after_pitstop:,}"
+)
+
+col2.metric(
+    label="Total Cancel Order After Pitstop Accept",
+    value=f"{total_cancel_after_pitstop:,}"
+)
+st.markdown("### Cancel Waiting Time")
+
+cancel_waiting_sql = """
 WITH waiting_time AS (
     SELECT
         date_diff(
@@ -107,26 +173,29 @@ WITH waiting_time AS (
 
     WHERE o.externalid NOT LIKE 'SOS%'
       AND p.waiting_confirmation_on IS NOT NULL
+      AND p.status = 'cancelled'
+),
+
+bucketed AS (
+    SELECT
+        CASE
+            WHEN waiting_minutes < 10 THEN '<10 min'
+            WHEN waiting_minutes < 20 THEN '10–20 min'
+            WHEN waiting_minutes < 30 THEN '20–30 min'
+            WHEN waiting_minutes < 45 THEN '30–45 min'
+            WHEN waiting_minutes < 60 THEN '45–60 min'
+            ELSE '>60 min'
+        END AS waiting_time
+    FROM waiting_time
 )
 
 SELECT
-    CASE
-        WHEN waiting_minutes < 10 THEN '<10 min'
-        WHEN waiting_minutes < 20 THEN '10–20 min'
-        WHEN waiting_minutes < 30 THEN '20–30 min'
-        WHEN waiting_minutes < 45 THEN '30–45 min'
-        WHEN waiting_minutes < 60 THEN '45–60 min'
-        ELSE '>60 min'
-    END AS waiting_bucket,
-
-    COUNT(*) AS total
-
-FROM waiting_time
-
-GROUP BY waiting_bucket
-
+    waiting_time AS "Waiting Time",
+    COUNT(*) AS "Cancel Order"
+FROM bucketed
+GROUP BY waiting_time
 ORDER BY
-    CASE waiting_bucket
+    CASE waiting_time
         WHEN '<10 min' THEN 1
         WHEN '10–20 min' THEN 2
         WHEN '20–30 min' THEN 3
@@ -135,117 +204,8 @@ ORDER BY
         WHEN '>60 min' THEN 6
     END;
 """
-
-bucket_df = query(bucket_sql)
-
-
-# Make sure all buckets always appear
-bucket_order = [
-    "<10 min",
-    "10–20 min",
-    "20–30 min",
-    "30–45 min",
-    "45–60 min",
-    ">60 min",
-]
-
-bucket_df = (
-    bucket_df
-    .set_index("waiting_bucket")
-    .reindex(bucket_order, fill_value=0)
-    .reset_index()
-)
-
-
-# ============================================================
-# KPI CARDS
-# ============================================================
-
-cols = st.columns(6)
-
-for col, (_, row) in zip(cols, bucket_df.iterrows()):
-    col.metric(
-        label=row["waiting_bucket"],
-        value=f"{int(row['total']):,}"
-    )
-
-
-# ============================================================
-# DETAILED DATA
-# ============================================================
-
-st.markdown("### Waiting Time Details")
-
-
-detail_sql = """
-WITH waiting_time AS (
-    SELECT
-        p.id,
-        p.status,
-        p.vpn,
-        p.username,
-        p.created_at,
-        p.waiting_confirmation_on,
-        o.externalid,
-
-        date_diff(
-            'minute',
-            CAST(p.created_at AS TIMESTAMP),
-            CAST(p.waiting_confirmation_on AS TIMESTAMP)
-        ) AS waiting_minutes
-
-    FROM partner p
-    INNER JOIN orders o
-        ON CAST(p.id AS VARCHAR) = o.externalid
-
-    WHERE o.externalid NOT LIKE 'SOS%'
-      AND p.waiting_confirmation_on IS NOT NULL
-)
-
-SELECT
-    id,
-    status,
-    vpn,
-    username,
-    created_at,
-    waiting_confirmation_on,
-    externalid,
-    waiting_minutes,
-
-    CASE
-        WHEN waiting_minutes < 10 THEN '<10 min'
-        WHEN waiting_minutes < 20 THEN '10–20 min'
-        WHEN waiting_minutes < 30 THEN '20–30 min'
-        WHEN waiting_minutes < 45 THEN '30–45 min'
-        WHEN waiting_minutes < 60 THEN '45–60 min'
-        ELSE '>60 min'
-    END AS waiting_bucket
-
-FROM waiting_time
-
-ORDER BY waiting_minutes DESC;
-"""
-
-detail_df = query(detail_sql)
-
-
-# ============================================================
-# TABLE
-# ============================================================
-
-if isinstance(detail_df, pd.DataFrame):
-    st.dataframe(
-        detail_df,
-        use_container_width=True,
-        hide_index=True,
-    )
-else:
-    st.dataframe(
-        pd.DataFrame(detail_df),
-        use_container_width=True,
-        hide_index=True,
-    )
-st.markdown("---")
+cancel_waiting_df = query(cancel_waiting_sql)
+st.table(cancel_waiting_df)
 st.markdown("---")
 
 
